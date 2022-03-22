@@ -40,7 +40,14 @@ public class DecoderRockTree
     {
         public byte x, y, z; // position
         public byte w; // octant mask
-        public ushort u, v; // texture coordinates
+        public Int16 u, v; // texture coordinates
+
+        public vertex_t(byte x, byte y, byte z)
+        {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+        }
     };
 
 
@@ -50,12 +57,10 @@ public class DecoderRockTree
         var data = packed.Memory.ToArray();
         var count = packed.Length / 3;
         var vtx = new List<vertex_t>(count);
-        byte x = 0, y = 0, z = 0; // 8 bit for % 0x100
+        byte x = 0, y = 0, z = 0; // 8 bit for % 0x100;
         for (var i = 0; i < count; i++)
         {
-            vtx[i].x = x += data[count * 0 + i];
-            vtx[i].y = y += data[count * 1 + i];
-            vtx[i].z = z += data[count * 2 + i];
+            vtx.Add(new vertex_t(data[count * 0 + i], data[count * 1 + i],data[count * 2 + i]));
         }
 
         return vtx;
@@ -79,24 +84,26 @@ public class DecoderRockTree
     public ResultOfUnpackTexCoords unpackTexCoords(ByteString packed, List<vertex_t> vertices, int
         vertices_len, List<float> uv_offset, List<float> uv_scale)
     {
-        var data = packed.Memory.ToArray();
+        var data = new List<byte>(packed.Memory.ToArray());
         var count = vertices_len;
-        //TODO:
-//        var u_mod = 1 + *(uint16_t*) (data + 0);
-// var v_mod = 1 + *(uint16_t*) (data + 2);
-// data += 4;
+        var u_mod = 1 + (data.Count/16 + 0);
+        var v_mod = 1 + (data.Count/16 + 2);
+        data.Add(0);
+        data.Add(0); 
+        data.Add(0); 
+        data.Add(0); 
         var vtx = vertices;
         ushort u = 0, v = 0;
         for (var i = 0; i < count; i++)
         {
-            vtx[i].u = u = Convert.ToByte(u + data[count * 0 + i] + (data[count * 2 + i] << 8)); // % u_mod;
-            vtx[i].v = v = Convert.ToByte(v + data[count * 1 + i] + (data[count * 3 + i] << 8)); // % v_mod;
+            vtx[i].u = Convert.ToInt16(u + data[count * 0 + i] + (data[count * 2 + i] << 8)% u_mod);
+            vtx[i].v = Convert.ToInt16(v + data[count * 1 + i] + (data[count * 3 + i] << 8) % v_mod);
         }
 
         uv_offset[0] = (float) 0.5;
         uv_offset[1] = (float) 0.5;
-        uv_scale[0] = (float) 1.0; //\/ u_mod;
-        uv_scale[1] = (float) 1.0; //\/ v_mod;
+        uv_scale[0] = (float) 1.0/ u_mod;
+        uv_scale[1] = (float) 1.0/ v_mod;
         return new ResultOfUnpackTexCoords(uv_offset, uv_scale, vertices);
     }
 
@@ -107,6 +114,10 @@ public class DecoderRockTree
         var res = unpackVarInt(packed, offset);
         var triangleStripLen = res.lenght;
         var triangleStrip = new List<short>(triangleStripLen);
+        for (int i = 0; i < triangleStripLen; i++)
+        {
+            triangleStrip.Add(0);
+        }
         var numNonDegenerateTriangles = 0;
         short zeros = 0, a  = 0, b = 0, c = 0;
         for (int i = 0; i < triangleStripLen; i++) {
@@ -121,8 +132,6 @@ public class DecoderRockTree
         }
         return triangleStrip;
     }
-    
-    
     
     
 // unpackOctantMaskAndOctantCountsAndLayerBounds unpacks the octant mask for vertices (W) and layer bounds and octant counts
@@ -329,13 +338,13 @@ public class DecoderRockTree
         result.path += '\0';
         return result;
     }
-//
-//     struct OrientedBoundingBox
-//     {
-//         Vector3d center;
-//         Vector3d extents;
-//         Matrix3d orientation;
-//     };
+
+     // struct OrientedBoundingBox
+     // {
+     //     Vector3d center;
+     //     Vector3d extents;
+     //     Matrix3d orientation;
+     // };
 //
 //     OrientedBoundingBox unpackObb(ByteString packed, Vector3f head_node_center, float meters_per_texel) {
 //         Debug.Assert(packed.Length == 15);
