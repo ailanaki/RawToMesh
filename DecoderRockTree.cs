@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using Google.Protobuf;
 
 namespace GeoGlobetrotterProtoRocktree;
@@ -6,10 +9,10 @@ public class DecoderRockTree
 {
     public class ResultOfUnpackVarInt
     {
-        public readonly short Lenght;
+        public readonly int Lenght;
         public readonly int Offset;
 
-        public ResultOfUnpackVarInt(short lenght, int offset)
+        public ResultOfUnpackVarInt(int lenght, int offset)
         {
             Lenght = lenght;
             Offset = offset;
@@ -20,7 +23,8 @@ public class DecoderRockTree
     private static ResultOfUnpackVarInt UnpackVarInt(ByteString packed, int index)
     {
         var data = packed.Memory.ToArray();
-        short c = 0;
+        var size = data.Length;
+        int c = 0;
         int d = 1, e;
         do
         {
@@ -103,27 +107,29 @@ public class DecoderRockTree
     }
 
 // unpackIndices unpacks indices to triangle strip
-    public List<short> UnpackIndices(ByteString packed)
+    public List<int> UnpackIndices(ByteString packed)
     {
         var offset = 0;
         var res = UnpackVarInt(packed, offset);
         var triangleStripLen = res.Lenght;
-        var triangleStrip = new List<short>(triangleStripLen);
+        var triangleStrip = new List<int>(triangleStripLen);
         for (int i = 0; i < triangleStripLen; i++)
         {
             triangleStrip.Add(0);
         }
 
+        offset = res.Offset;
+
         var numNonDegenerateTriangles = 0;
-        short zeros = 0, a = 0, b = 0, c = 0;
+        int zeros = 0, a = 0, b = 0, c = 0;
         for (int i = 0; i < triangleStripLen; i++)
         {
             res = UnpackVarInt(packed, offset);
             offset = res.Offset;
-            triangleStrip[i] = a;
             a = b;
             b = c;
-            c = Convert.ToInt16(zeros - res.Lenght);
+            c = zeros - res.Lenght;
+            triangleStrip[i] = c;
             if (a != b && a != c && b != c) numNonDegenerateTriangles++;
             if (0 == res.Lenght) zeros++;
         }

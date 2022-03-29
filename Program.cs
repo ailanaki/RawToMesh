@@ -1,4 +1,6 @@
-﻿using GeoGlobetrotterProtoRocktree;
+﻿using System;
+using System.IO;
+using GeoGlobetrotterProtoRocktree;
 using Google.Protobuf;
 
 void PrintMessage(IMessage message)

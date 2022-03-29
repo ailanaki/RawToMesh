@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Google.Protobuf.Collections;
 
 namespace GeoGlobetrotterProtoRocktree;
@@ -51,10 +52,10 @@ public class Data
     public class CurrentMesh
     {
         public List<Vertice> Vertices;
-        public List<short> Indices;
+        public List<int> Indices;
         public List<Normal> Normals;
 
-        public CurrentMesh(List<Vertice> vertices, List<short> indices, List<Normal> normals)
+        public CurrentMesh(List<Vertice> vertices, List<int> indices, List<Normal> normals)
         {
             Vertices = vertices;
             Indices = indices;
@@ -114,7 +115,7 @@ public class Data
         return answer;
     }
 
-    private List<short> ToIndices(Mesh mesh)
+    private List<int> ToIndices(Mesh mesh)
     {
         return decoderRockTree.UnpackIndices(mesh.Indices);
     }
