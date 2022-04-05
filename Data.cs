@@ -97,7 +97,7 @@ namespace GeoGlobetrotterProtoRocktree
       //  var result = decoderRockTree.UnpackTexCoords(mesh.TextureCoordinates, vert, vert.Count, uvOffset, uvScale);
         var preVer = mesh.Vertices.ToByteArray();
         var tex = mesh.Texture;
-        for (var i = 0; i < preVer.Length; i+=8)
+        for (var i = 0; i < preVer.Length - 8; i+=8)
         {
             var x = preVer[i];
             var y = preVer[i + 1];
