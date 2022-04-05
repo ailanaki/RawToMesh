@@ -1,13 +1,16 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using Google.Protobuf.Collections;
 
-namespace GeoGlobetrotterProtoRocktree;
-
-public class Data
+namespace GeoGlobetrotterProtoRocktree
+{
+    public class Data
 {
     public List<CurrentMesh> Meshes = new List<CurrentMesh>();
     private DecoderRockTree decoderRockTree = new DecoderRockTree();
     private NodeData _nodeData;
+    private List<DecoderRockTree.VertexT> preVer;
     private RepeatedField<double> _ma; // nodeData.MatrixGlobeFromMesh
 
     public Data(NodeData nodeData)
@@ -19,6 +22,19 @@ public class Data
             var cur = new CurrentMesh(ToVertice(preMesh), ToIndices(preMesh), ToNormals(preMesh));
             Meshes.Add(cur);
         }
+    }
+
+    public Data(string nameFile)
+    {  var input = File.ReadAllBytes(nameFile);
+        var nodeData = NodeData.Parser.ParseFrom(input);
+        _nodeData = nodeData;
+        _ma = nodeData.MatrixGlobeFromMesh;
+        foreach (var preMesh in nodeData.Meshes)
+        {
+            var cur = new CurrentMesh(ToVertice(preMesh), ToIndices(preMesh), ToNormals(preMesh));
+            Meshes.Add(cur);
+        }
+        
     }
 
     public class Vertice
@@ -76,7 +92,7 @@ public class Data
         }
 
         var result = decoderRockTree.UnpackTexCoords(mesh.TextureCoordinates, vert, vert.Count, uvOffset, uvScale);
-        var preVer = result.Vertices;
+        preVer = result.Vertices;
         var tex = mesh.Texture;
         for (var i = 0; i < preVer.Count; i++)
         {
@@ -116,8 +132,33 @@ public class Data
     }
 
     private List<int> ToIndices(Mesh mesh)
-    {
-        return decoderRockTree.UnpackIndices(mesh.Indices);
+    { 
+        var preInd = decoderRockTree.UnpackIndices(mesh.Indices);
+        var triangle_groups = new List<List<int>>();
+        for (int i = 0; i < preInd.Count - 2; i += 1) {
+            var a = preInd[i + 0];
+            var b = preInd[i + 1];
+            var c = preInd[i + 2];
+            if (a == b || a == c || b == c) {
+                continue;
+            }
+            if ((i & 1) == 0)
+            {
+                triangle_groups.Add(new List<int>{a, c, b});
+            }
+            else {
+                triangle_groups.Add(new List<int>{a, b, c});
+            }
+        }
+
+        var ind = new List<int>();
+
+        foreach (var k in triangle_groups){
+            ind.Add(k[0]);
+            ind.Add(k[1]);
+            ind.Add(k[2]);
+        }
+        return ind;
     }
 
     private List<Normal> ToNormals(Mesh mesh)
@@ -147,3 +188,5 @@ public class Data
         return answer;
     }
 }
+}
+

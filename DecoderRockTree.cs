@@ -3,341 +3,347 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using Google.Protobuf;
 
-namespace GeoGlobetrotterProtoRocktree;
-
-public class DecoderRockTree
+namespace GeoGlobetrotterProtoRocktree
 {
-    public class ResultOfUnpackVarInt
+    public class DecoderRockTree
     {
-        public readonly int Lenght;
-        public readonly int Offset;
-
-        public ResultOfUnpackVarInt(int lenght, int offset)
+        public class ResultOfUnpackVarInt
         {
-            Lenght = lenght;
-            Offset = offset;
+            public readonly int Lenght;
+            public readonly int Offset;
+
+            public ResultOfUnpackVarInt(int lenght, int offset)
+            {
+                Lenght = lenght;
+                Offset = offset;
+            }
         }
-    }
 
 // unpackVarInt unpacks variable length integer from proto (like coded_stream.h)
-    private static ResultOfUnpackVarInt UnpackVarInt(ByteString packed, int index)
-    {
-        var data = packed.Memory.ToArray();
-        var size = data.Length;
-        int c = 0;
-        int d = 1, e;
-        do
+        private static ResultOfUnpackVarInt UnpackVarInt(ByteString packed, int index)
         {
-            e = data[index++];
-            c += Convert.ToInt16((e & 0x7F) * d);
-            d <<= 7;
-        } while ((e & 0x80) != 0);
+            var data = packed.Memory.ToArray();
+            var size = data.Length;
+            int c = 0;
+            int d = 1, e;
+            do
+            {
+                e = data[index++];
+                c += Convert.ToInt16((e & 0x7F) * d);
+                d <<= 7;
+            } while ((e & 0x80) != 0);
 
-        return new ResultOfUnpackVarInt(c, index);
-    }
+            return new ResultOfUnpackVarInt(c, index);
+        }
 
 // vertex is a packed struct for an 8-byte-per-vertex array
-    public class VertexT
-    {
-        public byte X,Y,Z; // position
-        public byte W; // octant mask
-        public Int16 U, V; // texture coordinates
-
-        public VertexT(byte x, byte y, byte z)
+        public class VertexT
         {
-            X = x;
-            Y = y;
-            Z = z;
-        }
-    };
+            public byte X, Y, Z; // position
+            public byte W; // octant mask
+            public Int16 U, V; // texture coordinates
+
+            public VertexT(byte x, byte y, byte z)
+            {
+                X = x;
+                Y = y;
+                Z = z;
+            }
+        };
 
 
 // unpackVertices unpacks vertices XYZ to new 8-byte-per-vertex array
-    public List<VertexT> UnpackVertices(ByteString packed)
-    {
-        var data = packed.Memory.ToArray();
-        var count = packed.Length / 3;
-        var vtx = new List<VertexT>(count); // 8 bit for % 0x100;
-        for (var i = 0; i < count; i++)
+        public List<VertexT> UnpackVertices(ByteString packed)
         {
-            vtx.Add(new VertexT(data[count * 0 + i], data[count * 1 + i], data[count * 2 + i]));
-        }
-        return vtx;
-    }
+            var data = packed.Memory.ToArray();
+            var count = packed.Length / 3;
+            var vtx = new List<VertexT>(count); // 8 bit for % 0x100;
+            for (var i = 0; i < count; i++)
+            {
+                vtx.Add(new VertexT(data[count * 0 + i], data[count * 1 + i], data[count * 2 + i]));
+            }
 
-    public class ResultOfUnpackTexCoords
-    {
-        public ResultOfUnpackTexCoords(List<float> uvOffset, List<float> uvScale, List<VertexT> vertices)
-        {
-           UvOffset = uvOffset;
-           UvScale = uvScale;
-           Vertices = vertices;
+            return vtx;
         }
 
-        public List<float> UvOffset;
-        public List<float> UvScale;
-        public readonly List<VertexT> Vertices;
-    }
+        public class ResultOfUnpackTexCoords
+        {
+            public ResultOfUnpackTexCoords(List<float> uvOffset, List<float> uvScale, List<VertexT> vertices)
+            {
+                UvOffset = uvOffset;
+                UvScale = uvScale;
+                Vertices = vertices;
+            }
+
+            public List<float> UvOffset;
+            public List<float> UvScale;
+            public readonly List<VertexT> Vertices;
+        }
 
 // unpackTexCoords unpacks texture coordinates UV to 8-byte-per-vertex-array
-    public ResultOfUnpackTexCoords UnpackTexCoords(ByteString packed, List<VertexT> vertices, int
-        verticesLen, List<float> uvOffset, List<float> uvScale)
-    {
-        var data = new List<byte>(packed.Memory.ToArray());
-        var count = verticesLen;
-        var uMod = 1 + (data.Count / 16 + 0);
-        var vMod = 1 + (data.Count / 16 + 2);
-        data.Add(0);
-        data.Add(0);
-        data.Add(0);
-        data.Add(0);
-        var vtx = vertices;
-        ushort u = 0, v = 0;
-        for (var i = 0; i < count; i++)
+        public ResultOfUnpackTexCoords UnpackTexCoords(ByteString packed, List<VertexT> vertices, int
+            verticesLen, List<float> uvOffset, List<float> uvScale)
         {
-            vtx[i].U = Convert.ToInt16(u + data[count * 0 + i] + (data[count * 2 + i] << 8) % uMod);
-            vtx[i].V = Convert.ToInt16(v + data[count * 1 + i] + (data[count * 3 + i] << 8) % vMod);
-        }
+            var data = new List<byte>(packed.Memory.ToArray());
+            var count = verticesLen;
+            var uMod = 1 + (data.Count / 16 + 0);
+            var vMod = 1 + (data.Count / 16 + 2);
+            data.Add(0);
+            data.Add(0);
+            data.Add(0);
+            data.Add(0);
+            var vtx = vertices;
+            ushort u = 0, v = 0;
+            for (var i = 0; i < count; i++)
+            {
+                vtx[i].U = Convert.ToInt16(u + data[count * 0 + i] + (data[count * 2 + i] << 8) % uMod);
+                vtx[i].V = Convert.ToInt16(v + data[count * 1 + i] + (data[count * 3 + i] << 8) % vMod);
+            }
 
-        uvOffset[0] = (float) 0.5;
-        uvOffset[1] = (float) 0.5;
-        uvScale[0] = (float) 1.0 / uMod;
-        uvScale[1] = (float) 1.0 / vMod;
-        return new ResultOfUnpackTexCoords(uvOffset, uvScale, vertices);
-    }
+            uvOffset[0] = (float) 0.5;
+            uvOffset[1] = (float) 0.5;
+            uvScale[0] = (float) 1.0 / uMod;
+            uvScale[1] = (float) 1.0 / vMod;
+            return new ResultOfUnpackTexCoords(uvOffset, uvScale, vertices);
+        }
 
 // unpackIndices unpacks indices to triangle strip
-    public List<int> UnpackIndices(ByteString packed)
-    {
-        var offset = 0;
-        var res = UnpackVarInt(packed, offset);
-        var triangleStripLen = res.Lenght;
-        var triangleStrip = new List<int>(triangleStripLen);
-        for (int i = 0; i < triangleStripLen; i++)
+        public List<int> UnpackIndices(ByteString packed)
         {
-            triangleStrip.Add(0);
-        }
+            var offset = 0;
+            var res = UnpackVarInt(packed, offset);
+            var triangleStripLen = res.Lenght;
+            var triangleStrip = new List<int>(triangleStripLen);
+            for (int i = 0; i < triangleStripLen; i++)
+            {
+                triangleStrip.Add(0);
+            }
 
-        offset = res.Offset;
-
-        var numNonDegenerateTriangles = 0;
-        int zeros = 0, a = 0, b = 0, c = 0;
-        for (int i = 0; i < triangleStripLen; i++)
-        {
-            res = UnpackVarInt(packed, offset);
             offset = res.Offset;
-            a = b;
-            b = c;
-            c = zeros - res.Lenght;
-            triangleStrip[i] = c;
-            if (a != b && a != c && b != c) numNonDegenerateTriangles++;
-            if (0 == res.Lenght) zeros++;
-        }
 
-        return triangleStrip;
-    }
+            var numNonDegenerateTriangles = 0;
+            int zeros = 0, a = 0, b = 0, c = 0;
+            for (int i = 0; i < triangleStripLen; i++)
+            {
+                res = UnpackVarInt(packed, offset);
+                offset = res.Offset;
+                a = b;
+                b = c;
+                c = zeros - res.Lenght;
+                triangleStrip[i] = c;
+                if (a != b && a != c && b != c) numNonDegenerateTriangles++;
+                if (0 == res.Lenght) zeros++;
+            }
+
+            return triangleStrip;
+        }
 
 
 // unpackOctantMaskAndOctantCountsAndLayerBounds unpacks the octant mask for vertices (W) and layer bounds and octant counts
-    public void UnpackOctantMaskAndOctantCountsAndLayerBounds(ByteString packed, List<byte> indices, int
-        indicesLen, List<VertexT> vertices, int verticesLen, int[] layerBounds)
-    {
-        var res = UnpackVarInt(packed, 0);
-        var len = res.Lenght;
-        var offset = res.Offset;
-        var idxI = 0;
-        var k = 0;
-        var m = 0;
-
-        for (var i = 0; i < len; i++)
+        public void UnpackOctantMaskAndOctantCountsAndLayerBounds(ByteString packed, List<byte> indices, int
+            indicesLen, List<VertexT> vertices, int verticesLen, int[] layerBounds)
         {
-            if (0 == i % 8)
+            var res = UnpackVarInt(packed, 0);
+            var len = res.Lenght;
+            var offset = res.Offset;
+            var idxI = 0;
+            var k = 0;
+            var m = 0;
+
+            for (var i = 0; i < len; i++)
             {
-                layerBounds[m++] = k;
+                if (0 == i % 8)
+                {
+                    layerBounds[m++] = k;
+                }
+
+                var v = UnpackVarInt(packed, offset);
+                for (var j = 0; j < v.Lenght; j++)
+                {
+                    var idx = indices[idxI++];
+                    vertices[idx].W = Convert.ToByte(i & 7);
+                }
+
+                offset = v.Offset;
+                k += v.Lenght;
             }
 
-            var v = UnpackVarInt(packed, offset);
-            for (var j = 0; j < v.Lenght; j++)
+            for (; 10 > m; m++) layerBounds[m] = k;
+        }
+
+
+        public class ResultForNormals
+        {
+            public ResultForNormals(byte[] unpackedForNormals, int count)
             {
-                var idx = indices[idxI++];
-                vertices[idx].W = Convert.ToByte(i & 7);
+                UnpackedForNormals = unpackedForNormals;
+                Count = count;
             }
 
-            offset = v.Offset;
-            k += v.Lenght;
+            public byte[] UnpackedForNormals;
+            public int Count;
         }
-
-        for (; 10 > m; m++) layerBounds[m] = k;
-    }
-
-
-    public class ResultForNormals
-    {
-        public ResultForNormals(byte[] unpackedForNormals, int count)
-        {
-            UnpackedForNormals = unpackedForNormals;
-            Count = count;
-        }
-
-        public byte[] UnpackedForNormals;
-        public int Count;
-    }
 
 // unpackForNormals unpacks normals info for later mesh normals usage
-    public  ResultForNormals UnpackForNormals(NodeData nodeData)
-    {
-        int F1(int v, int l)
+        public ResultForNormals UnpackForNormals(NodeData nodeData)
         {
-            if (4 >= l)
-                return (v << l) + (v & (1 << l) - 1);
-            if (6 >= l)
+            int F1(int v, int l)
             {
-                var r = 8 - l;
-                return (v << l) + (v << l >> r) + (v << l >> r >> r) + (v << l >> r >> r >> r);
+                if (4 >= l)
+                    return (v << l) + (v & (1 << l) - 1);
+                if (6 >= l)
+                {
+                    var r = 8 - l;
+                    return (v << l) + (v << l >> r) + (v << l >> r >> r) + (v << l >> r >> r >> r);
+                }
+
+                return -(v & 1);
             }
 
-            return -(v & 1);
-        }
-        byte F2(double c)
-        {
-            var cr = (int) Math.Round(c);
-            if (cr < 0) return 0;
-            if (cr > 255) return 255;
-            return Convert.ToByte(cr);
-        }
-        var input = nodeData.ForNormals;
-        var data = input.Memory.ToArray();
-        var size = input.Length;
-        var count = size / 2;
-        int s = data[2];
-        //     data += 3;
-
-        var output = new byte[3 * count];
-
-        for (var i = 0; i < count; i++)
-        {
-            double a = F1(data[0 + i], s) / 255.0;
-            double f = F1(data[count + i], s) / 255.0;
-
-            double b = a, c = f, g = b + c, h = b - c;
-            int sign = 1;
-
-            if (!(.5 <= g && 1.5 >= g && -.5 <= h && .5 >= h))
+            byte F2(double c)
             {
-                sign = -1;
-                if (.5 >= g)
+                var cr = (int) Math.Round(c);
+                if (cr < 0) return 0;
+                if (cr > 255) return 255;
+                return Convert.ToByte(cr);
+            }
+
+            var input = nodeData.ForNormals;
+            var data = input.Memory.ToArray();
+            var size = input.Length;
+            var count = size / 2;
+            int s = data[2];
+            //     data += 3;
+
+            var output = new byte[3 * count];
+
+            for (var i = 0; i < count; i++)
+            {
+                double a = F1(data[0 + i], s) / 255.0;
+                double f = F1(data[count + i], s) / 255.0;
+
+                double b = a, c = f, g = b + c, h = b - c;
+                int sign = 1;
+
+                if (!(.5 <= g && 1.5 >= g && -.5 <= h && .5 >= h))
                 {
-                    b = .5 - f;
-                    c = .5 - a;
-                }
-                else
-                {
-                    if (1.5 <= g)
+                    sign = -1;
+                    if (.5 >= g)
                     {
-                        b = 1.5 - f;
-                        c = 1.5 - a;
+                        b = .5 - f;
+                        c = .5 - a;
                     }
                     else
                     {
-                        if (-.5 >= h)
+                        if (1.5 <= g)
                         {
-                            b = f - .5;
-                            c = a + .5;
+                            b = 1.5 - f;
+                            c = 1.5 - a;
                         }
                         else
                         {
-                            b = f + .5;
-                            c = a - .5;
+                            if (-.5 >= h)
+                            {
+                                b = f - .5;
+                                c = a + .5;
+                            }
+                            else
+                            {
+                                b = f + .5;
+                                c = a - .5;
+                            }
                         }
                     }
+
+                    g = b + c;
+                    h = b - c;
                 }
 
-                g = b + c;
-                h = b - c;
+
+                a = Math.Min(Math.Min(2 * g - 1, 3 - 2 * g), Math.Min(2 * h + 1, 1 - 2 * h)) * sign;
+                b = 2 * b - 1;
+                c = 2 * c - 1;
+                var m = 127 / Math.Sqrt(a * a + b * b + c * c);
+
+                output[3 * i + 0] = F2(m * a + 127);
+                output[3 * i + 1] = F2(m * b + 127);
+                output[3 * i + 2] = F2(m * c + 127);
             }
 
-
-            a = Math.Min(Math.Min(2 * g - 1, 3 - 2 * g), Math.Min(2 * h + 1, 1 - 2 * h)) * sign;
-            b = 2 * b - 1;
-            c = 2 * c - 1;
-            var m = 127 / Math.Sqrt(a * a + b * b + c * c);
-
-            output[3 * i + 0] = F2(m * a + 127);
-            output[3 * i + 1] = F2(m * b + 127);
-            output[3 * i + 2] = F2(m * c + 127);
+            return new ResultForNormals(output, 3 * count);
         }
-
-        return new ResultForNormals(output, 3 * count);
-    }
 
 // unpackNormals unpacks normals indices in mesh using normal data from NodeData
-    public ResultForNormals UnpackNormals(Mesh mesh, byte[] unpackedForNormals)
-    {
-        var normals = mesh.Normals;
-        byte[] newNormals;
-        int count;
-        if (mesh.HasNormals)
+        public ResultForNormals UnpackNormals(Mesh mesh, byte[] unpackedForNormals)
         {
-            count = normals.Memory.ToArray().Length / 2;
-            newNormals = new byte[count * 4];
-            var input = normals.Memory.ToArray();
-            for (var i = 0; i < count; ++i)
+            var normals = mesh.Normals;
+            byte[] newNormals;
+            int count;
+            if (mesh.HasNormals)
             {
-                int j = input[i] + (input[count + i] << 8);
-                newNormals[4 * i + 0] = unpackedForNormals[3 * j + 0];
-                newNormals[4 * i + 1] = unpackedForNormals[3 * j + 1];
-                newNormals[4 * i + 2] = unpackedForNormals[3 * j + 2];
-                newNormals[4 * i + 3] = 0;
+                count = normals.Memory.ToArray().Length / 2;
+                newNormals = new byte[count * 4];
+                var input = normals.Memory.ToArray();
+                for (var i = 0; i < count; ++i)
+                {
+                    int j = input[i] + (input[count + i] << 8);
+                    newNormals[4 * i + 0] = unpackedForNormals[3 * j + 0];
+                    newNormals[4 * i + 1] = unpackedForNormals[3 * j + 1];
+                    newNormals[4 * i + 2] = unpackedForNormals[3 * j + 2];
+                    newNormals[4 * i + 3] = 0;
+                }
             }
-        }
-        else
-        {
-            count = (mesh.Vertices.Length / 3) * 8;
-            newNormals = new byte[count * 4];
-            for (var i = 0; i < count; ++i)
+            else
             {
-                newNormals[4 * i + 0] = 127;
-                newNormals[4 * i + 1] = 127;
-                newNormals[4 * i + 2] = 127;
-                newNormals[4 * i + 3] = 0;
+                count = (mesh.Vertices.Length / 3) * 8;
+                newNormals = new byte[count * 4];
+                for (var i = 0; i < count; ++i)
+                {
+                    newNormals[4 * i + 0] = 127;
+                    newNormals[4 * i + 1] = 127;
+                    newNormals[4 * i + 2] = 127;
+                    newNormals[4 * i + 3] = 0;
+                }
             }
+
+            return new ResultForNormals(newNormals, 4 * count);
         }
 
-        return new ResultForNormals(newNormals, 4 * count);
-    }
-
-    public struct NodeDataPathAndFlagsT
-    {
-        public string Path;
-        public int Flags;
-        public int Level;
-
-        public NodeDataPathAndFlagsT(string path, int flags, int level)
+        public struct NodeDataPathAndFlagsT
         {
-            Path = path;
-            Flags = flags;
-            Level = level;
-        }
-    };
+            public string Path;
+            public int Flags;
+            public int Level;
+
+            public NodeDataPathAndFlagsT(string path, int flags, int level)
+            {
+                Path = path;
+                Flags = flags;
+                Level = level;
+            }
+        };
 
 // unpackPathAndFlags unpacks path, flags and level (strlen(path)) from node metadata
-    public NodeDataPathAndFlagsT UnpackPathAndFlags(NodeMetadata nodeMeta)
-    {
-        NodeDataPathAndFlagsT GetPathAndFlags(uint pathId) {
-            var path = "";
-            var level = 1 + (Convert.ToInt32(pathId) & 3);
-            pathId >>= 2;
-            for (int i = 0; i < level; i++)
+        public NodeDataPathAndFlagsT UnpackPathAndFlags(NodeMetadata nodeMeta)
+        {
+            NodeDataPathAndFlagsT GetPathAndFlags(uint pathId)
             {
-                path += '0';
-                path += pathId & 7;
-                pathId >>= 3;
-            }
-            return new NodeDataPathAndFlagsT(path, (int) pathId, level);
-        }
+                var path = "";
+                var level = 1 + (Convert.ToInt32(pathId) & 3);
+                pathId >>= 2;
+                for (int i = 0; i < level; i++)
+                {
+                    path += '0';
+                    path += pathId & 7;
+                    pathId >>= 3;
+                }
 
-        NodeDataPathAndFlagsT result = GetPathAndFlags(nodeMeta.PathAndFlags);
-        result.Path += '\0';
-        return result;
+                return new NodeDataPathAndFlagsT(path, (int) pathId, level);
+            }
+
+            NodeDataPathAndFlagsT result = GetPathAndFlags(nodeMeta.PathAndFlags);
+            result.Path += '\0';
+            return result;
+        }
     }
 }
