@@ -29,7 +29,7 @@ namespace s1
             Console.WriteLine("Verticals");
             for (var i = 0; i < mesh.Vertices.Count; i++)
             {
-                Console.WriteLine((float) ver[i].X + " " + (float) ver[i].Y + " " + (float) ver[i].Z);
+                Console.WriteLine( ver[i].X + " " +  ver[i].Y + " " + ver[i].Z);
             }
 
             var ind = mesh.Indices;

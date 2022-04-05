@@ -10,8 +10,8 @@ namespace GeoGlobetrotterProtoRocktree
     public List<CurrentMesh> Meshes = new List<CurrentMesh>();
     private DecoderRockTree decoderRockTree = new DecoderRockTree();
     private NodeData _nodeData;
-    private List<DecoderRockTree.VertexT> preVer;
     private RepeatedField<double> _ma; // nodeData.MatrixGlobeFromMesh
+    private int SCALE = 10;
 
     public Data(NodeData nodeData)
     {
@@ -81,6 +81,9 @@ namespace GeoGlobetrotterProtoRocktree
 
     private List<Vertice> ToVertice(Mesh mesh)
     {
+        double min_x = Double.MaxValue, max_x = Double.MinValue;
+        double min_y = Double.MaxValue, max_y = Double.MinValue;
+        double min_z = Double.MaxValue, max_z = Double.MinValue;
         var answer = new List<Vertice>();
         var vert = decoderRockTree.UnpackVertices(mesh.Vertices);
         var uvOffset = new List<float>(2);
@@ -91,27 +94,35 @@ namespace GeoGlobetrotterProtoRocktree
             uvScale.Add(0);
         }
 
-        var result = decoderRockTree.UnpackTexCoords(mesh.TextureCoordinates, vert, vert.Count, uvOffset, uvScale);
-        preVer = result.Vertices;
+      //  var result = decoderRockTree.UnpackTexCoords(mesh.TextureCoordinates, vert, vert.Count, uvOffset, uvScale);
+        var preVer = mesh.Vertices.ToByteArray();
         var tex = mesh.Texture;
-        for (var i = 0; i < preVer.Count; i++)
+        for (var i = 0; i < preVer.Length; i+=8)
         {
-            var x = preVer[i].X;
-            var y = preVer[i].Y;
-            var z = preVer[i].Z;
+            var x = preVer[i];
+            var y = preVer[i + 1];
+            var z = preVer[i + 2];
             var w = 1;
             var x1 = x * _ma[0] + y * _ma[4] + z * _ma[8] + w * _ma[12];
             var y1 = x * _ma[1] + y * _ma[5] + z * _ma[9] + w * _ma[13];
             var z1 = x * _ma[2] + y * _ma[6] + z * _ma[10] + w * _ma[14];
             var w1 = x * _ma[3] + y * _ma[7] + z * _ma[11] + w * _ma[15];
+            
+            min_x = Math.Min(x1, min_x);
+            min_y = Math.Min(y1, min_y);
+            min_z = Math.Min(z1, min_z);
+            max_x = Math.Max(x1, max_x);
+            max_y = Math.Max(y1, max_y);
+            max_z = Math.Max(z1, max_z);
+            
             var ut = 0.0;
             var vt = 0.0;
             if (mesh.UvOffsetAndScale != null && mesh.UvOffsetAndScale.Count >= 3)
             {
-                var u1 = preVer[i + 4].U;
-                var u2 = preVer[i + 5].U;
-                var v1 = preVer[i + 6].V;
-                var v2 = preVer[i + 7].V;
+                var u1 = preVer[i + 4];
+                var u2 = preVer[i + 5];
+                var v1 = preVer[i + 6];
+                var v2 = preVer[i + 7];
 
                 var u = u2 * 256 + u1;
                 var v = v2 * 256 + v1;
@@ -127,7 +138,21 @@ namespace GeoGlobetrotterProtoRocktree
 
             answer.Add(new Vertice(x1, y1, z1, ut, vt));
         }
-
+        var center_x = (max_x + min_x) / 2;
+        var center_y = (max_y + min_y) / 2;
+        var center_z = (max_z + min_z) / 2;
+        var distance_x = Math.Abs(max_x - min_x);
+        var distance_y = Math.Abs(max_y - min_y);
+        var distance_z = Math.Abs(max_z - min_z);
+        var max_distance = Math.Max(Math.Max(distance_x, distance_y), distance_z);
+        
+        foreach (var vertex in answer)
+        {
+            vertex.X = (vertex.X - center_x) / max_distance * SCALE;
+            vertex.Y = (vertex.Y - center_y) / max_distance * SCALE;
+            vertex.Z = (vertex.Z - center_z) / max_distance * SCALE;
+        }
+        
         return answer;
     }
 
