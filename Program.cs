@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using GeoGlobetrotterProtoRocktree;
 using Google.Protobuf;
 
@@ -15,26 +17,23 @@ namespace s1
             var data = new Data(metadata);
             var mesh = data.Meshes[0];
             var ver = mesh.Vertices;
-            Console.WriteLine("Verticals");
-            for (var i = 0; i < mesh.Vertices.Count; i++)
-            {
-                Console.WriteLine( ver[i].X + " " +  ver[i].Y + " " + ver[i].Z);
-            }
+            Console.WriteLine("Vertices");
+            // for (var i = 0; i < mesh.Vertices.Count; i++)
+            // {
+            //     Console.WriteLine( ver[i].X + " " +  ver[i].Y + " " + ver[i].Z);
+            // }
+            Console.WriteLine(ver.Count);
 
             var ind = mesh.Indices;
             Console.WriteLine("Indices");
-            Console.WriteLine(ind.Count);
             // for (var i = 0; i < 10; i++)
             // {
             //     Console.WriteLine(ind[i]);
             // }
-
-            // var norm = mesh.Normals;
-            // Console.WriteLine("Normals");
-            // for (var i = 0; i < 10; i++)
-            // {
-            //     Console.WriteLine(norm[i].X + " " +norm[i].Y + "  " + norm[i].Z);
-            // }
+            var norm = mesh.Normals;
+            Console.WriteLine("Normals");
+            Console.WriteLine(metadata.Meshes[0].Normals.Length);
+            Console.WriteLine(metadata.Meshes[0].Vertices.Length);
 
         }
     }

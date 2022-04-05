@@ -12,6 +12,7 @@ namespace GeoGlobetrotterProtoRocktree
     private NodeData _nodeData;
     private RepeatedField<double> _ma; // nodeData.MatrixGlobeFromMesh
     private int SCALE = 10;
+    private int max;
 
     public Data(NodeData nodeData)
     {
@@ -85,7 +86,6 @@ namespace GeoGlobetrotterProtoRocktree
         double min_y = Double.MaxValue, max_y = Double.MinValue;
         double min_z = Double.MaxValue, max_z = Double.MinValue;
         var answer = new List<Vertice>();
-        var vert = decoderRockTree.UnpackVertices(mesh.Vertices);
         var uvOffset = new List<float>(2);
         var uvScale = new List<float>(2);
         for (var i = 0; i < 2; i++)
@@ -152,13 +152,14 @@ namespace GeoGlobetrotterProtoRocktree
             vertex.Y = (vertex.Y - center_y) / max_distance * SCALE;
             vertex.Z = (vertex.Z - center_z) / max_distance * SCALE;
         }
-        
+
+        max = answer.Count - 1;
         return answer;
     }
 
     private List<int> ToIndices(Mesh mesh)
-    { 
-        var preInd = decoderRockTree.UnpackIndices(mesh.Indices);
+    {
+       var preInd = decoderRockTree.UnpackIndices(mesh.Indices);
         var triangle_groups = new List<List<int>>();
         for (int i = 0; i < preInd.Count - 2; i += 1) {
             var a = preInd[i + 0];
@@ -167,7 +168,8 @@ namespace GeoGlobetrotterProtoRocktree
             if (a == b || a == c || b == c) {
                 continue;
             }
-            if ((i & 1) == 0)
+            if (a > max || b > max || c > max) continue;
+            if ((i & 1) != 0)
             {
                 triangle_groups.Add(new List<int>{a, c, b});
             }

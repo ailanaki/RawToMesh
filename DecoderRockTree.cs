@@ -122,8 +122,7 @@ namespace GeoGlobetrotterProtoRocktree
             offset = res.Offset;
 
             var numNonDegenerateTriangles = 0;
-            int zeros = 0, a = 0, b = 0, c = 0;
-            for (int i = 0; i < triangleStripLen; i++)
+            for (int i = 0, zeros = 0, a = 0, b = 0, c = 0; i < triangleStripLen; i++)
             {
                 res = UnpackVarInt(packed, offset);
                 offset = res.Offset;
@@ -140,8 +139,7 @@ namespace GeoGlobetrotterProtoRocktree
 
 
 // unpackOctantMaskAndOctantCountsAndLayerBounds unpacks the octant mask for vertices (W) and layer bounds and octant counts
-        public void UnpackOctantMaskAndOctantCountsAndLayerBounds(ByteString packed, List<byte> indices, int
-            indicesLen, List<VertexT> vertices, int verticesLen, int[] layerBounds)
+        public int[] UnpackOctantMaskAndOctantCountsAndLayerBounds(ByteString packed, byte[] indices, List<VertexT> vertices, int[] layerBounds)
         {
             var res = UnpackVarInt(packed, 0);
             var len = res.Lenght;
@@ -169,6 +167,7 @@ namespace GeoGlobetrotterProtoRocktree
             }
 
             for (; 10 > m; m++) layerBounds[m] = k;
+            return layerBounds;
         }
 
 
