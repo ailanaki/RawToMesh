@@ -7,33 +7,21 @@ namespace GeoGlobetrotterProtoRocktree
 {
     public class DecoderRockTree
     {
-        public class ResultOfUnpackVarInt
-        {
-            public readonly int Lenght;
-            public readonly int Offset;
-
-            public ResultOfUnpackVarInt(int lenght, int offset)
-            {
-                Lenght = lenght;
-                Offset = offset;
-            }
-        }
-
 // unpackVarInt unpacks variable length integer from proto (like coded_stream.h)
-        private static ResultOfUnpackVarInt UnpackVarInt(ByteString packed, int index)
+        private static int UnpackVarInt(ByteString packed, ref int index)
         {
-            var data = packed.Memory.ToArray();
+            var data = packed.ToByteArray();
             var size = data.Length;
             int c = 0;
             int d = 1, e;
             do
             {
                 e = data[index++];
-                c += Convert.ToInt16((e & 0x7F) * d);
+                c += Convert.ToInt32((e & 0x7F) * d);
                 d <<= 7;
             } while ((e & 0x80) != 0);
 
-            return new ResultOfUnpackVarInt(c, index);
+            return c;
         }
 
 // vertex is a packed struct for an 8-byte-per-vertex array
@@ -108,30 +96,25 @@ namespace GeoGlobetrotterProtoRocktree
         }
 
 // unpackIndices unpacks indices to triangle strip
-        public List<int> UnpackIndices(ByteString packed)
+        public List<UInt16> UnpackIndices(ByteString packed)
         {
             var offset = 0;
-            var res = UnpackVarInt(packed, offset);
-            var triangleStripLen = res.Lenght;
-            var triangleStrip = new List<int>(triangleStripLen);
+            var triangleStripLen =  UnpackVarInt(packed, ref offset);
+            var triangleStrip = new List<UInt16>(triangleStripLen);
             for (int i = 0; i < triangleStripLen; i++)
             {
                 triangleStrip.Add(0);
             }
-
-            offset = res.Offset;
-
             var numNonDegenerateTriangles = 0;
-            for (int i = 0, zeros = 0, a = 0, b = 0, c = 0; i < triangleStripLen; i++)
+            for (int i = 0, zeros = 0, a = 0, b = 0, c = 0; i < triangleStripLen - 2; i+=1)
             {
-                res = UnpackVarInt(packed, offset);
-                offset = res.Offset;
+                var res = UnpackVarInt(packed, ref offset);
                 a = b;
                 b = c;
-                c = zeros - res.Lenght;
-                triangleStrip[i] = c;
+                c = zeros - res;
+                triangleStrip[i] = Convert.ToUInt16(c); 
                 if (a != b && a != c && b != c) numNonDegenerateTriangles++;
-                if (0 == res.Lenght) zeros++;
+                if (0 == res) zeros++;
             }
 
             return triangleStrip;
@@ -139,14 +122,14 @@ namespace GeoGlobetrotterProtoRocktree
 
 
 // unpackOctantMaskAndOctantCountsAndLayerBounds unpacks the octant mask for vertices (W) and layer bounds and octant counts
-        public int[] UnpackOctantMaskAndOctantCountsAndLayerBounds(ByteString packed, byte[] indices, List<VertexT> vertices, int[] layerBounds)
+        public int[] UnpackOctantMaskAndOctantCountsAndLayerBounds(ByteString packed, List<UInt16> indices, List<VertexT> vertices)
         {
-            var res = UnpackVarInt(packed, 0);
-            var len = res.Lenght;
-            var offset = res.Offset;
+            var offset = 0;
+            var len =  UnpackVarInt(packed, ref offset);
             var idxI = 0;
             var k = 0;
             var m = 0;
+            var layerBounds = new int[len];
 
             for (var i = 0; i < len; i++)
             {
@@ -155,15 +138,14 @@ namespace GeoGlobetrotterProtoRocktree
                     layerBounds[m++] = k;
                 }
 
-                var v = UnpackVarInt(packed, offset);
-                for (var j = 0; j < v.Lenght; j++)
+                var v = UnpackVarInt(packed,ref offset);
+                for (var j = 0; j < v; j++)
                 {
                     var idx = indices[idxI++];
                     vertices[idx].W = Convert.ToByte(i & 7);
                 }
-
-                offset = v.Offset;
-                k += v.Lenght;
+                
+                k += v;
             }
 
             for (; 10 > m; m++) layerBounds[m] = k;
@@ -281,9 +263,9 @@ namespace GeoGlobetrotterProtoRocktree
             if (mesh.HasNormals)
             {
                 count = normals.Memory.ToArray().Length / 2;
-                newNormals = new byte[count * 4];
+                newNormals = new byte[count * 3/2];
                 var input = normals.Memory.ToArray();
-                for (var i = 0; i < count; ++i)
+                for (var i = 0; i < newNormals.Length/4 - 4; ++i)
                 {
                     int j = input[i] + (input[count + i] << 8);
                     newNormals[4 * i + 0] = unpackedForNormals[3 * j + 0];
