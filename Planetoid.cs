@@ -23,8 +23,8 @@ namespace s1
             public BulkMetadata _metadata;
             //  public int busy_ctr;
 
-            public Dictionary<string, Node> Nodes;
-            public Dictionary<string, Bulk> Bulks;
+            public Dictionary<string, Node> Nodes = new Dictionary<string, Node>();
+            public Dictionary<string, Bulk> Bulks = new Dictionary<string, Bulk>();
         }
 
         public class Node
@@ -32,8 +32,10 @@ namespace s1
             public NodeDataRequest Request;
             public bool CanHaveData;
             public Bulk Parent;
+
             public float MetersPerTexel;
-         // OrientedBoundingBox obb;
+
+            // OrientedBoundingBox obb;
             public NodeData _data;
             public double[] matrix_globe_from_mesh;
 
@@ -42,7 +44,9 @@ namespace s1
                 public List<DecoderRockTree.VertexT> vertices; //uint8
                 public List<UInt16> indices; //uint16
                 public List<float> uv_offset;
+
                 public List<float> uv_scale;
+
                 // public List<int> texture; //uint8
                 // public TextureFormat texture_format;
                 // public int texture_width;
@@ -68,7 +72,7 @@ namespace s1
             PopulatePlanetoid();
         }
 
-        BulkMetadataRequest createBulkMetadataRequest(string base_path, string path, uint epoch)
+        public BulkMetadataRequest createBulkMetadataRequest(string base_path, string path, uint epoch)
         {
             BulkMetadataRequest req = new BulkMetadataRequest();
             var key = new NodeKey();
@@ -78,16 +82,70 @@ namespace s1
             return req;
         }
 
-        void GetBulk(BulkMetadataRequest req, Bulk b)
+        public NodeDataRequest createNodeDataRequest(string base_path, BulkMetadata bulk, NodeMetadata node_meta)
+        {
+            var aux = _decoder.UnpackPathAndFlags(node_meta);
+            //  assert(!(aux.flags & NodeMetadata_Flags_NODATA));
+            //assert(node_meta.has_epoch());
+            NodeDataRequest req = new NodeDataRequest();
+
+            // set texture format based on supported formats
+            TextureFormat[] supported = {TextureFormat.texture_format_dxt1, TextureFormat.texture_format_rgb};
+
+            int available = (int) (node_meta.HasAvailableTextureFormats
+                ? node_meta.AvailableTextureFormats
+                : bulk.DefaultAvailableTextureFormats);
+
+            int tmp = -1;
+            foreach (var s in supported)
+            {
+                if ((available & (1 << ((int) s - 1))) > 0)
+                {
+                    tmp = (int) s;
+                    break;
+                }
+            }
+
+            if (tmp == -1)
+            {
+                tmp = (int) supported[0];
+            }
+
+            if (tmp == (int) TextureFormat.texture_format_dxt1)
+            {
+                req.TextureFormat = Texture.Types.Format.Dxt1;
+            }
+            else
+            {
+                req.TextureFormat = Texture.Types.Format.Jpg;
+            }
+
+            // set imagery epoch if flags say it should be used
+            if (aux.Flags > 0)
+            {
+                var imagery_epoch = node_meta.HasImageryEpoch ? node_meta.ImageryEpoch : bulk.DefaultImageryEpoch;
+                req.ImageryEpoch = imagery_epoch;
+            }
+
+            // set path and epoch
+            var key = new NodeKey();
+            key.Path = base_path + aux.Path;
+        //    assert(bulk.has_head_node_key() && bulk.head_node_key().has_epoch());
+            key.Epoch = node_meta.HasEpoch ? node_meta.Epoch : bulk.HeadNodeKey.Epoch;
+            req.NodeKey = key;
+            return req;
+        }
+
+        public void GetBulk(BulkMetadataRequest req, Bulk b)
         {
             var path = req.NodeKey.Path;
             var epoch = req.NodeKey.Epoch;
             BulkMetadata bulk;
-            bulk = BulkMetadata.Parser.ParseFrom(File.ReadAllBytes("BulkMetadata/pb=!1m2!1s" + path + "!2u" + epoch));
+            bulk = BulkMetadata.Parser.ParseFrom(File.ReadAllBytes("raw/BulkMetadata!1m2!1s" + path + "!2u" + epoch +".raw"));
             populateBulk(b, bulk);
         }
 
-        void GetNode(NodeDataRequest req, ref Node n)
+        public void GetNode(NodeDataRequest req, ref Node n)
         {
             var path = req.NodeKey.Path;
             string fileName;
@@ -104,13 +162,13 @@ namespace s1
             NodeData node = NodeData.Parser.ParseFrom(File.ReadAllBytes(fileName));
             populateNode(n, node);
         }
-
+        
         public class Llbounds
         {
             double n, s, w, e;
         };
 
-        void PopulatePlanetoid()
+        public void PopulatePlanetoid()
         {
             var bulk = new Bulk();
             bulk.Parent = null;
@@ -119,7 +177,7 @@ namespace s1
             RootBulk = bulk;
         }
 
-        void populateBulk(Bulk bulk, BulkMetadata bulkMetadata)
+        public void populateBulk(Bulk bulk, BulkMetadata bulkMetadata)
         {
             bulk._metadata = bulkMetadata;
             for (int i = 0; i < 3; i++) bulk.Head_node_center[i] = (float) bulk._metadata.HeadNodeCenter[i];
@@ -146,36 +204,35 @@ namespace s1
                     var meters_per_texel = node_meta.HasMetersPerTexel
                         ? node_meta.MetersPerTexel
                         : bulk._metadata.MetersPerTexel[aux.Level - 1];
-                    //  var n = new Node();
-                    // n->parent = bulk;
-                    //  n->can_have_data = has_data;
-                    // if (has_data)
-                    // {
-                    //     n->request = createNodeDataRequest(bulk->request.node_key().path(), *(bulk->_metadata),
-                    //         node_meta);
-                    // }
-                    //
-                    // n->meters_per_texel = meters_per_texel;
-                    // n->obb = unpackObb(node_meta.oriented_bounding_box(), bulk->head_node_center, meters_per_texel);
-                    // assert(bulk->nodes.insert(std::make_pair(aux.path, std::move(n))).second);
+                    var n = new Node();
+                    n.Parent = bulk;
+                    n.CanHaveData = has_data;
+                    if (has_data)
+                    {
+                        n.Request = createNodeDataRequest(bulk.Request.NodeKey.Path, bulk._metadata,
+                            node_meta);
+                    }
+
+                    n.MetersPerTexel = meters_per_texel;
+                    //      n.obb = unpackObb(node_meta.oriented_bounding_box(), bulk->head_node_center, meters_per_texel);
+                    bulk.Nodes.Add(aux.Path, n);
                 }
             }
 
             bulk._metadata = null;
         }
 
-        void populateNode(Node node, NodeData nodeData)
+        public void populateNode(Node node, NodeData nodeData)
         {
-            node.matrix_globe_from_mesh = new double[16]; 
+            node.matrix_globe_from_mesh = new double[16];
             for (int i = 0; i < 16; i++) node.matrix_globe_from_mesh[i] = nodeData.MatrixGlobeFromMesh[i];
-            DecoderRockTree decoder = new DecoderRockTree();
             foreach (var mesh in nodeData.Meshes)
             {
                 Node.Mesh m = new Node.Mesh();
-                m.indices = decoder.UnpackIndices(mesh.Indices);
-                m.vertices = decoder.UnpackVertices(mesh.Vertices);
+                m.indices = _decoder.UnpackIndices(mesh.Indices);
+                m.vertices = _decoder.UnpackVertices(mesh.Vertices);
 
-                decoder.UnpackTexCoords(mesh.TextureCoordinates, m.vertices, m.vertices.Count, m.uv_offset,
+                _decoder.UnpackTexCoords(mesh.TextureCoordinates, m.vertices, m.vertices.Count, m.uv_offset,
                     m.uv_scale);
                 if (mesh.UvOffsetAndScale.Count == 4)
                 {
@@ -190,7 +247,8 @@ namespace s1
                     m.uv_scale[1] *= -1;
                 }
 
-                int [] layer_bounds = decoder.UnpackOctantMaskAndOctantCountsAndLayerBounds(mesh.LayerAndOctantCounts, m.indices,
+                int[] layer_bounds = _decoder.UnpackOctantMaskAndOctantCountsAndLayerBounds(mesh.LayerAndOctantCounts,
+                    m.indices,
                     m.vertices);
                 //m.indices_len = layer_bounds[3]; // enable
                 Resize(m.indices, layer_bounds[3]);
@@ -234,7 +292,8 @@ namespace s1
                 node.meshes.Add(m);
             }
         }
-        public static void Resize<T>(List<T> list, int size, T element = default(T))
+
+        static void Resize<T>(List<T> list, int size, T element = default(T))
         {
             int count = list.Count;
 
@@ -244,7 +303,7 @@ namespace s1
             }
             else if (size > count)
             {
-                if (size > list.Capacity)   // Optimization
+                if (size > list.Capacity) // Optimization
                     list.Capacity = size;
 
                 list.AddRange(Enumerable.Repeat(element, size - count));
