@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Text;
 using Google.Protobuf;
 
 namespace GeoGlobetrotterProtoRocktree
@@ -45,10 +46,17 @@ namespace GeoGlobetrotterProtoRocktree
         {
             var data = packed.Memory.ToArray();
             var count = packed.Length / 3;
-            var vtx = new List<VertexT>(count); // 8 bit for % 0x100;
+            var vtx = new List<VertexT>(count);
+            byte x = 0;
+            byte y = 0;
+            byte z = 0;
+            // 8 bit for % 0x100;
             for (var i = 0; i < count; i++)
             {
-                vtx.Add(new VertexT(data[count * 0 + i], data[count * 1 + i], data[count * 2 + i]));
+                x += data[count * 0 + i];
+                y += data[count * 1 + i];
+                z += data[count * 2 + i];
+                vtx.Add(new VertexT(x, y, z));
             }
 
             return vtx;
@@ -106,7 +114,7 @@ namespace GeoGlobetrotterProtoRocktree
                 triangleStrip.Add(0);
             }
             var numNonDegenerateTriangles = 0;
-            for (int i = 0, zeros = 0, a = 0, b = 0, c = 0; i < triangleStripLen - 2; i+=1)
+            for (int i = 0, zeros = 0, a = 0, b = 0, c = 0; i < triangleStripLen - 2; i += 1)
             {
                 var res = UnpackVarInt(packed, ref offset);
                 a = b;
@@ -292,38 +300,52 @@ namespace GeoGlobetrotterProtoRocktree
 
         public struct NodeDataPathAndFlagsT
         {
-            public string Path;
+            public char[] Path;
             public int Flags;
             public int Level;
 
-            public NodeDataPathAndFlagsT(string path, int flags, int level)
+            public NodeDataPathAndFlagsT( int flags, int level)
             {
-                Path = path;
+                Path = new char[21];
                 Flags = flags;
                 Level = level;
+            }
+
+            public string getPath()
+            {
+                string preString = new string(Path);
+                int i = preString.Length - 1;
+                while (preString[i] == '\0')
+                {
+                    i--;
+                }
+
+                return preString.Substring(0, i);
             }
         };
 
 // unpackPathAndFlags unpacks path, flags and level (strlen(path)) from node metadata
         public NodeDataPathAndFlagsT UnpackPathAndFlags(NodeMetadata nodeMeta)
         {
-            NodeDataPathAndFlagsT GetPathAndFlags(uint pathId)
+            NodeDataPathAndFlagsT GetPathAndFlags(int pathId)
             {
-                var path = "";
-                var level = 1 + (Convert.ToInt32(pathId) & 3);
+               
+                var level = 1 + (pathId & 3);
+                var result = new NodeDataPathAndFlagsT(pathId, level);
                 pathId >>= 2;
                 for (int i = 0; i < level; i++)
                 {
-                    path += '0';
-                    path += pathId & 7;
+                    result.Path[i] = Convert.ToChar(48 + (pathId & 7));
                     pathId >>= 3;
                 }
 
-                return new NodeDataPathAndFlagsT(path, (int) pathId, level);
+                result.Flags = pathId;
+                return result;
             }
 
-            NodeDataPathAndFlagsT result = GetPathAndFlags(nodeMeta.PathAndFlags);
-            result.Path += '\0';
+            NodeDataPathAndFlagsT result = GetPathAndFlags((int) nodeMeta.PathAndFlags);
+           // result.Path[result.Level] = '\0';
+            Console.WriteLine(result.getPath());
             return result;
         }
     }
