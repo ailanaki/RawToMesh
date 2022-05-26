@@ -42,7 +42,7 @@ namespace s1
             public class Mesh
             {
                 public List<DecoderRockTree.VertexT> vertices; //uint8
-                public List<UInt16> indices; //uint16
+                public List<int> indices; //uint16
                 public List<float> uv_offset;
 
                 public List<float> uv_scale;
@@ -129,7 +129,7 @@ namespace s1
 
             // set path and epoch
             var key = new NodeKey();
-            key.Path = base_path + aux.Path;
+            key.Path = base_path + aux.getPath();
         //    assert(bulk.has_head_node_key() && bulk.head_node_key().has_epoch());
             key.Epoch = node_meta.HasEpoch ? node_meta.Epoch : bulk.HeadNodeKey.Epoch;
             req.NodeKey = key;
@@ -151,16 +151,22 @@ namespace s1
             string fileName;
             if (!req.HasImageryEpoch)
             {
-                fileName = "NodeData/pb=!1m2!1s" + path + "!2u" + req.NodeKey + "!2e" + req.TextureFormat + "!4b0";
+                fileName = "raw/NodeData!1m2!1s" + path + "!2u" + req.NodeKey + "!2e" + req.TextureFormat + "!4b0";
             }
             else
             {
-                fileName = "NodeData/pb=!1m2!1s" + path + "!2u" + req.NodeKey.Epoch + "!2e" + req.TextureFormat +
+                var tex = (req.TextureFormat == Texture.Types.Format.Jpg) ? 1 : 6;
+                fileName = "raw/NodeData!1m2!1s" + path + "!2u" + req.NodeKey.Epoch + "!2e" + tex +
                            "!3u" + req.ImageryEpoch + "!4b0";
             }
 
-            NodeData node = NodeData.Parser.ParseFrom(File.ReadAllBytes(fileName));
-            populateNode(n, node);
+            if (File.Exists(fileName))
+            {
+                NodeData node = NodeData.Parser.ParseFrom(File.ReadAllBytes(fileName));
+                populateNode(n, node);
+            }
+
+           
         }
         
         public class Llbounds
@@ -195,8 +201,8 @@ namespace s1
 
                     var b = new Bulk();
                     b.Parent = bulk;
-                    b.Request = createBulkMetadataRequest(bulk.Request.NodeKey.Path, aux.Path, epoch);
-                    b.Bulks[aux.Path] = b;
+                    b.Request = createBulkMetadataRequest(bulk.Request.NodeKey.Path, aux.getPath(), epoch);
+                    b.Bulks[aux.getPath()] = b;
                 }
 
                 if (has_data || node_meta.HasPathAndFlags && node_meta.HasOrientedBoundingBox)
@@ -215,7 +221,8 @@ namespace s1
 
                     n.MetersPerTexel = meters_per_texel;
                     //      n.obb = unpackObb(node_meta.oriented_bounding_box(), bulk->head_node_center, meters_per_texel);
-                    bulk.Nodes.Add(aux.Path, n);
+                    if (bulk.Nodes.ContainsKey(aux.getPath())) bulk.Nodes[aux.getPath()] = n;
+                    else bulk.Nodes.Add(aux.getPath(), n);
                 }
             }
 
@@ -250,7 +257,6 @@ namespace s1
                 int[] layer_bounds = _decoder.UnpackOctantMaskAndOctantCountsAndLayerBounds(mesh.LayerAndOctantCounts,
                     m.indices,
                     m.vertices);
-                //m.indices_len = layer_bounds[3]; // enable
                 Resize(m.indices, layer_bounds[3]);
 
                 // var textures = mesh.Texture;

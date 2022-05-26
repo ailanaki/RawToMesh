@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using GeoGlobetrotterProtoRocktree;
 using Google.Protobuf.Collections;
 
@@ -84,9 +83,6 @@ namespace s1
 
         private List<Vertice> ToVertice(Mesh mesh)
         {
-            double min_x = Double.MaxValue, max_x = Double.MinValue;
-            double min_y = Double.MaxValue, max_y = Double.MinValue;
-            double min_z = Double.MaxValue, max_z = Double.MinValue;
             var answer = new List<Vertice>();
             var uvOffset = new List<float>(2);
             var uvScale = new List<float>(2);
@@ -110,13 +106,6 @@ namespace s1
                 var _z = x * _ma[2] + y * _ma[6] + z * _ma[10] + w * _ma[14];
                 var _w = x * _ma[3] + y * _ma[7] + z * _ma[11] + w * _ma[15];
                 
-                min_x = Math.Min(_x, min_x);         
-                min_y = Math.Min(_y, min_y);
-                min_z = Math.Min(_z, min_z);
-                max_x = Math.Max(_x, max_x);
-                max_y = Math.Max(_y, max_y);
-                max_z = Math.Max(_z, max_z);
-
                 var ut = 0.0;
                 var vt = 0.0;
                 if (mesh.UvOffsetAndScale != null && mesh.UvOffsetAndScale.Count >= 3)
@@ -139,22 +128,6 @@ namespace s1
                 }
                 answer.Add(new Vertice(_x, _y, _z, ut, vt));
             }
-
-            var center_x = (max_x + min_x) / 2;
-            var center_y = (max_y + min_y) / 2;
-            var center_z = (max_z + min_z) / 2;
-            var distance_x = Math.Abs(max_x - min_x);
-            var distance_y = Math.Abs(max_y - min_y);
-            var distance_z = Math.Abs(max_z - min_z);
-            var max_distance = Math.Max(Math.Max(distance_x, distance_y), distance_z);
-
-            foreach (var vertex in answer)
-            {
-                vertex.X = (vertex.X - center_x) / max_distance * SCALE;
-                vertex.Y = (vertex.Y - center_y) / max_distance * SCALE;
-                vertex.Z = (vertex.Z - center_z) / max_distance * SCALE;
-            }
-            
             return answer;
         }
 
@@ -164,7 +137,8 @@ namespace s1
             
             var preInd = decoderRockTree.UnpackIndices(mesh.Indices);
             var layerBounds = decoderRockTree.UnpackOctantMaskAndOctantCountsAndLayerBounds(mesh.LayerAndOctantCounts, 
-                preInd, decoderRockTree.UnpackVertices(mesh.Vertices));//TODO: fix this 
+                preInd, decoderRockTree.UnpackVertices(mesh.Vertices));
+            
             for (int i = 0; i < preInd.Count - 2; i++)
             {
                 if (i == layerBounds[3]) break;
@@ -175,17 +149,18 @@ namespace s1
                 {
                     continue;
                 }
-                if ((i & 1) != 0)
+                //TODO:
+                if (i % 2 == 0)
                 {
                     ind.Add(a);
-                    ind.Add(c);
                     ind.Add(b);
+                    ind.Add(c);
                 }
                 else
                 {
                     ind.Add(a);
-                    ind.Add(b);
                     ind.Add(c);
+                    ind.Add(b);
                 }
             }
 

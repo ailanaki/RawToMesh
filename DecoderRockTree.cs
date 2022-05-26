@@ -15,13 +15,16 @@ namespace GeoGlobetrotterProtoRocktree
             var size = data.Length;
             int c = 0;
             int d = 1, e;
-            do
+            if (index != size)
             {
-                e = data[index++];
-                c += Convert.ToInt32((e & 0x7F) * d);
-                d <<= 7;
-            } while ((e & 0x80) != 0);
-
+                do
+                {
+                    e = data[index++];
+                    c += Convert.ToInt32((e & 0x7F) * d);
+                    d <<= 7;
+                } while ((e & 0x80) != 0 && index != size);
+                
+            }
             return c;
         }
 
@@ -104,17 +107,17 @@ namespace GeoGlobetrotterProtoRocktree
         }
 
 // unpackIndices unpacks indices to triangle strip
-        public List<UInt16> UnpackIndices(ByteString packed)
+        public List<int> UnpackIndices(ByteString packed)
         {
             var offset = 0;
             var triangleStripLen =  UnpackVarInt(packed, ref offset);
-            var triangleStrip = new List<UInt16>(triangleStripLen);
+            var triangleStrip = new List<int>(triangleStripLen);
             for (int i = 0; i < triangleStripLen; i++)
             {
                 triangleStrip.Add(0);
             }
             var numNonDegenerateTriangles = 0;
-            for (int i = 0, zeros = 0, a = 0, b = 0, c = 0; i < triangleStripLen - 2; i += 1)
+            for (int i = 0, zeros = 0, a = 0, b = 0, c = 0; i < triangleStripLen; i += 1)
             {
                 var res = UnpackVarInt(packed, ref offset);
                 a = b;
@@ -130,13 +133,14 @@ namespace GeoGlobetrotterProtoRocktree
 
 
 // unpackOctantMaskAndOctantCountsAndLayerBounds unpacks the octant mask for vertices (W) and layer bounds and octant counts
-        public int[] UnpackOctantMaskAndOctantCountsAndLayerBounds(ByteString packed, List<UInt16> indices, List<VertexT> vertices)
+        public int[] UnpackOctantMaskAndOctantCountsAndLayerBounds(ByteString packed, List<int> indices, List<VertexT> vertices)
         {
             var offset = 0;
-            var len =  UnpackVarInt(packed, ref offset);
+            var len = UnpackVarInt(packed, ref offset);
             var idxI = 0;
             var k = 0;
             var m = 0;
+            if (len < 10) len = 10;
             var layerBounds = new int[len];
 
             for (var i = 0; i < len; i++)
@@ -145,18 +149,19 @@ namespace GeoGlobetrotterProtoRocktree
                 {
                     layerBounds[m++] = k;
                 }
-
-                var v = UnpackVarInt(packed,ref offset);
+                var v = UnpackVarInt(packed, ref offset);
                 for (var j = 0; j < v; j++)
                 {
-                    var idx = indices[idxI++];
-                    vertices[idx].W = Convert.ToByte(i & 7);
+                    if (idxI < indices.Count)
+                    {
+                        var idx = indices[idxI++];
+                        vertices[idx].W = Convert.ToByte(i & 7);
+                    }
                 }
-                
                 k += v;
             }
 
-            for (; 10 > m; m++) layerBounds[m] = k;
+            for (;10 > m; m++) layerBounds[m] = k;
             return layerBounds;
         }
 
