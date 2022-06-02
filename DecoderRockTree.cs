@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 using Google.Protobuf;
+using s1;
 
 namespace GeoGlobetrotterProtoRocktree
 {
@@ -23,8 +24,8 @@ namespace GeoGlobetrotterProtoRocktree
                     c += Convert.ToInt32((e & 0x7F) * d);
                     d <<= 7;
                 } while ((e & 0x80) != 0 && index != size);
-                
             }
+
             return c;
         }
 
@@ -33,7 +34,7 @@ namespace GeoGlobetrotterProtoRocktree
         {
             public byte X, Y, Z; // position
             public byte W; // octant mask
-            public Int16 U, V; // texture coordinates
+            public byte U1, U2, V1, V2; // texture coordinates
 
             public VertexT(byte x, byte y, byte z)
             {
@@ -65,57 +66,45 @@ namespace GeoGlobetrotterProtoRocktree
             return vtx;
         }
 
-        public class ResultOfUnpackTexCoords
-        {
-            public ResultOfUnpackTexCoords(List<float> uvOffset, List<float> uvScale, List<VertexT> vertices)
-            {
-                UvOffset = uvOffset;
-                UvScale = uvScale;
-                Vertices = vertices;
-            }
-
-            public List<float> UvOffset;
-            public List<float> UvScale;
-            public readonly List<VertexT> Vertices;
-        }
 
 // unpackTexCoords unpacks texture coordinates UV to 8-byte-per-vertex-array
-        public ResultOfUnpackTexCoords UnpackTexCoords(ByteString packed, List<VertexT> vertices, int
-            verticesLen, List<float> uvOffset, List<float> uvScale)
+        public List<VertexT> UnpackTexCoords(ByteString packed, List<VertexT> vertices, ref List<float> uvOffset, ref List<float> uvScale)
         {
-            var data = new List<byte>(packed.Memory.ToArray());
-            var count = verticesLen;
-            var uMod = 1 + (data.Count / 16 + 0);
-            var vMod = 1 + (data.Count / 16 + 2);
-            data.Add(0);
-            data.Add(0);
-            data.Add(0);
-            data.Add(0);
-            var vtx = vertices;
-            ushort u = 0, v = 0;
+            var data = new List<byte>(packed.ToByteArray());
+            var uMod = 1 + Convert.ToInt16(data[0] + (data[1] << 8));
+            var vMod = 1 + Convert.ToInt16(data[2] + (data[3] << 8));
+            int u = 0, v = 0;
+            var count = (data.Count - 4) / 4;
             for (var i = 0; i < count; i++)
             {
-                vtx[i].U = Convert.ToInt16(u + data[count * 0 + i] + (data[count * 2 + i] << 8) % uMod);
-                vtx[i].V = Convert.ToInt16(v + data[count * 1 + i] + (data[count * 3 + i] << 8) % vMod);
+                u = (u + data[0 * count + i + 4] + (data[2 * count + i + 4] << 8)) % uMod;
+                v = (v + data[1 * count + i + 4] + (data[3 * count + i + 4] << 8)) % vMod;
+                
+                vertices[i].U1 = Convert.ToByte(u & 255);
+                vertices[i].U2 = Convert.ToByte(u >> 8);
+                vertices[i].V1 = Convert.ToByte(v & 255);
+                vertices[i].V2 = Convert.ToByte(v >> 8);
             }
-
-            uvOffset[0] = (float) 0.5;
-            uvOffset[1] = (float) 0.5;
             uvScale[0] = (float) 1.0 / uMod;
             uvScale[1] = (float) 1.0 / vMod;
-            return new ResultOfUnpackTexCoords(uvOffset, uvScale, vertices);
+            uvOffset[0] = (float) 0.5;
+            uvOffset[1] = (float) 0.5 - 1 / uvScale[1];
+            uvScale[1] *= -1;
+            
+            return vertices;
         }
 
 // unpackIndices unpacks indices to triangle strip
         public List<int> UnpackIndices(ByteString packed)
         {
             var offset = 0;
-            var triangleStripLen =  UnpackVarInt(packed, ref offset);
+            var triangleStripLen = UnpackVarInt(packed, ref offset);
             var triangleStrip = new List<int>(triangleStripLen);
             for (int i = 0; i < triangleStripLen; i++)
             {
                 triangleStrip.Add(0);
             }
+
             var numNonDegenerateTriangles = 0;
             for (int i = 0, zeros = 0, a = 0, b = 0, c = 0; i < triangleStripLen; i += 1)
             {
@@ -123,7 +112,7 @@ namespace GeoGlobetrotterProtoRocktree
                 a = b;
                 b = c;
                 c = zeros - res;
-                triangleStrip[i] = Convert.ToUInt16(c); 
+                triangleStrip[i] = Convert.ToUInt16(c);
                 if (a != b && a != c && b != c) numNonDegenerateTriangles++;
                 if (0 == res) zeros++;
             }
@@ -133,7 +122,8 @@ namespace GeoGlobetrotterProtoRocktree
 
 
 // unpackOctantMaskAndOctantCountsAndLayerBounds unpacks the octant mask for vertices (W) and layer bounds and octant counts
-        public int[] UnpackOctantMaskAndOctantCountsAndLayerBounds(ByteString packed, List<int> indices, List<VertexT> vertices)
+        public int[] UnpackOctantMaskAndOctantCountsAndLayerBounds(ByteString packed, List<int> indices,
+            List<VertexT> vertices)
         {
             var offset = 0;
             var len = UnpackVarInt(packed, ref offset);
@@ -149,6 +139,7 @@ namespace GeoGlobetrotterProtoRocktree
                 {
                     layerBounds[m++] = k;
                 }
+
                 var v = UnpackVarInt(packed, ref offset);
                 for (var j = 0; j < v; j++)
                 {
@@ -158,10 +149,11 @@ namespace GeoGlobetrotterProtoRocktree
                         vertices[idx].W = Convert.ToByte(i & 7);
                     }
                 }
+
                 k += v;
             }
 
-            for (;10 > m; m++) layerBounds[m] = k;
+            for (; 10 > m; m++) layerBounds[m] = k;
             return layerBounds;
         }
 
@@ -181,7 +173,7 @@ namespace GeoGlobetrotterProtoRocktree
 // unpackForNormals unpacks normals info for later mesh normals usage
         public ResultForNormals UnpackForNormals(NodeData nodeData)
         {
-            int F1(int v, int l)
+            int f1(int v, int l)
             {
                 if (4 >= l)
                     return (v << l) + (v & (1 << l) - 1);
@@ -194,27 +186,33 @@ namespace GeoGlobetrotterProtoRocktree
                 return -(v & 1);
             }
 
-            byte F2(double c)
+            ;
+
+            int f2(double c)
             {
                 var cr = (int) Math.Round(c);
                 if (cr < 0) return 0;
                 if (cr > 255) return 255;
-                return Convert.ToByte(cr);
+                return cr;
             }
 
             var input = nodeData.ForNormals;
-            var data = input.Memory.ToArray();
-            var size = input.Length;
-            var count = size / 2;
+            var data = new List<byte>(input.ToByteArray());
+            var count = data[0] + (data[1] << 8);
             int s = data[2];
-            //     data += 3;
+            data.Remove(data[0]);
+            data.Remove(data[0]);
+            data.Remove(data[0]);
+            data.Add(0);
+            data.Add(0);
+            data.Add(0);
 
             var output = new byte[3 * count];
 
             for (var i = 0; i < count; i++)
             {
-                double a = F1(data[0 + i], s) / 255.0;
-                double f = F1(data[count + i], s) / 255.0;
+                double a = f1(data[0 + i], s) / 255.0;
+                double f = f1(data[count + i], s) / 255.0;
 
                 double b = a, c = f, g = b + c, h = b - c;
                 int sign = 1;
@@ -253,32 +251,31 @@ namespace GeoGlobetrotterProtoRocktree
                     h = b - c;
                 }
 
-
                 a = Math.Min(Math.Min(2 * g - 1, 3 - 2 * g), Math.Min(2 * h + 1, 1 - 2 * h)) * sign;
                 b = 2 * b - 1;
                 c = 2 * c - 1;
                 var m = 127 / Math.Sqrt(a * a + b * b + c * c);
 
-                output[3 * i + 0] = F2(m * a + 127);
-                output[3 * i + 1] = F2(m * b + 127);
-                output[3 * i + 2] = F2(m * c + 127);
+                output[3 * i + 0] = Convert.ToByte(f2(m * a + 127));
+                output[3 * i + 1] = Convert.ToByte(f2(m * b + 127));
+                output[3 * i + 2] = Convert.ToByte(f2(m * c + 127));
             }
 
             return new ResultForNormals(output, 3 * count);
         }
 
 // unpackNormals unpacks normals indices in mesh using normal data from NodeData
-        public ResultForNormals UnpackNormals(Mesh mesh, byte[] unpackedForNormals)
+        public ResultForNormals UnpackNormals(Mesh mesh, byte[] unpackedForNormals, int isUn)
         {
             var normals = mesh.Normals;
             byte[] newNormals;
-            int count;
-            if (mesh.HasNormals)
+            int count = 0;
+            if (mesh.HasNormals && isUn != 0)
             {
-                count = normals.Memory.ToArray().Length / 2;
-                newNormals = new byte[count * 3/2];
-                var input = normals.Memory.ToArray();
-                for (var i = 0; i < newNormals.Length/4 - 4; ++i)
+                var input = normals.ToByteArray();
+                count = normals.Length / 2;
+                newNormals = new byte[4 * count];
+                for (var i = 0; i < count; ++i)
                 {
                     int j = input[i] + (input[count + i] << 8);
                     newNormals[4 * i + 0] = unpackedForNormals[3 * j + 0];
@@ -290,7 +287,7 @@ namespace GeoGlobetrotterProtoRocktree
             else
             {
                 count = (mesh.Vertices.Length / 3) * 8;
-                newNormals = new byte[count * 4];
+                newNormals = new byte[4 * count];
                 for (var i = 0; i < count; ++i)
                 {
                     newNormals[4 * i + 0] = 127;
@@ -309,7 +306,7 @@ namespace GeoGlobetrotterProtoRocktree
             public int Flags;
             public int Level;
 
-            public NodeDataPathAndFlagsT( int flags, int level)
+            public NodeDataPathAndFlagsT(int flags, int level)
             {
                 Path = new char[21];
                 Flags = flags;
@@ -334,7 +331,6 @@ namespace GeoGlobetrotterProtoRocktree
         {
             NodeDataPathAndFlagsT GetPathAndFlags(int pathId)
             {
-               
                 var level = 1 + (pathId & 3);
                 var result = new NodeDataPathAndFlagsT(pathId, level);
                 pathId >>= 2;
@@ -349,7 +345,7 @@ namespace GeoGlobetrotterProtoRocktree
             }
 
             NodeDataPathAndFlagsT result = GetPathAndFlags((int) nodeMeta.PathAndFlags);
-           // result.Path[result.Level] = '\0';
+            // result.Path[result.Level] = '\0';
             Console.WriteLine(result.getPath());
             return result;
         }

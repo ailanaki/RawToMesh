@@ -94,7 +94,9 @@ namespace s1
 
             //  var result = decoderRockTree.UnpackTexCoords(mesh.TextureCoordinates, vert, vert.Count, uvOffset, uvScale);
             var preVer = decoderRockTree.UnpackVertices(mesh.Vertices);
-            var tex = mesh.Texture;
+            preVer = decoderRockTree.UnpackTexCoords(mesh.TextureCoordinates, preVer,
+                ref uvOffset, ref uvScale);
+            var tex = mesh.Texture[0];
             for (var i = 0; i < preVer.Count; i +=1)
             {
                 var x = preVer[i].X;
@@ -108,20 +110,17 @@ namespace s1
                 
                 var ut = 0.0;
                 var vt = 0.0;
-                if (mesh.UvOffsetAndScale != null && mesh.UvOffsetAndScale.Count >= 3)
+                
+                if (mesh.UvOffsetAndScale != null)
                 {
-                    var u1 = preVer[i + 4];
-                    var u2 = preVer[i + 5];
-                    var v1 = preVer[i + 6];
-                    var v2 = preVer[i + 7];
 
-                    var u = Convert.ToInt32(u2) * 256 + Convert.ToInt32(u1);
-                    var v = Convert.ToInt32(v2) * 256 + Convert.ToInt32(v1);
+                    var u = Convert.ToInt32(preVer[i].U2 *256 + preVer[i].U1);
+                    var v = Convert.ToInt32(preVer[i].V2 *256 + preVer[i].V1);
                     
-                    ut = (u + mesh.UvOffsetAndScale[0]) * mesh.UvOffsetAndScale[2];
-                    vt = (v + mesh.UvOffsetAndScale[1]) * mesh.UvOffsetAndScale[3];
+                    ut = (u + uvOffset[0]) * uvScale[0];
+                    vt = (v + uvOffset[1]) * uvScale[1];
 
-                    if (tex[i].Format == Texture.Types.Format.CrnDxt1)
+                    if (tex.Format == Texture.Types.Format.CrnDxt1)
                     {
                         vt = 1 - vt;
                     }
@@ -138,7 +137,6 @@ namespace s1
             var preInd = decoderRockTree.UnpackIndices(mesh.Indices);
             var layerBounds = decoderRockTree.UnpackOctantMaskAndOctantCountsAndLayerBounds(mesh.LayerAndOctantCounts, 
                 preInd, decoderRockTree.UnpackVertices(mesh.Vertices));
-            
             for (int i = 0; i < preInd.Count - 2; i++)
             {
                 if (i == layerBounds[3]) break;
@@ -149,7 +147,6 @@ namespace s1
                 {
                     continue;
                 }
-                //TODO:
                 if (i % 2 == 0)
                 {
                     ind.Add(a);
@@ -170,10 +167,11 @@ namespace s1
         private List<Normal> ToNormals(Mesh mesh)
         {
             var answer = new List<Normal>();
+            var norm = decoderRockTree.UnpackForNormals(_nodeData);
             var res = decoderRockTree.UnpackNormals(mesh,
-                decoderRockTree.UnpackForNormals(_nodeData).UnpackedForNormals);
+                norm.UnpackedForNormals, norm.Count);
             var normals = res.UnpackedForNormals;
-            for (var i = 0; i < normals.Length - 4; i += 4)
+            for (var i = 0; i < normals.Length; i += 4)
             {
                 var x = normals[i + 0] - 127;
                 var y = normals[i + 1] - 127;

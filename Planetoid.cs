@@ -239,8 +239,8 @@ namespace s1
                 m.indices = _decoder.UnpackIndices(mesh.Indices);
                 m.vertices = _decoder.UnpackVertices(mesh.Vertices);
 
-                _decoder.UnpackTexCoords(mesh.TextureCoordinates, m.vertices, m.vertices.Count, m.uv_offset,
-                    m.uv_scale);
+                _decoder.UnpackTexCoords(mesh.TextureCoordinates, m.vertices, ref m.uv_offset,
+                    ref m.uv_scale);
                 if (mesh.UvOffsetAndScale.Count == 4)
                 {
                     m.uv_offset[0] = mesh.UvOffsetAndScale[0];

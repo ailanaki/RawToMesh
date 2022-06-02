@@ -209,25 +209,23 @@ namespace s1
                 "/Users/aishayakupova/RiderProjects/s1/raw/");
 
             var sizeT = 0;
-             _vertice = new List<Vector3>();
-             List<Data.Vertice> ver = new List<Data.Vertice>();
+            _vertice = new List<Vector3>();
+            List<Data.Vertice> ver = new List<Data.Vertice>();
             var _triangles = new List<int>();
 
 
             foreach (var data in dataList)
             {
                 var meshList = data.Meshes;
-                foreach (var curMesh in meshList)
-                {
-                //var curMesh = data.Meshes[0];
-                    AddCurrentVertice(curMesh, ref ver);
-                    AddCurrentIndices(sizeT, curMesh, ref _triangles);
-                    sizeT += curMesh.Vertices.Count;
-               }
+                // foreach (var curMesh in meshList)
+                // {
+                var curMesh = data.Meshes[0];
+                AddCurrentVertice(curMesh, ref ver);
+               // AddCurrentIndices(sizeT, curMesh, ref _triangles);
+                // sizeT += curMesh.Vertices.Count;
+                //  }
+                printUV(ver);
             }
-            _vertice = Center_Scale(ref ver);
-            printVerticals();
-            
         }
 
         static void printTriangles(List<int> _triangles)
@@ -239,14 +237,14 @@ namespace s1
                                  (_triangles[i + 1]) + " " +
                                  (_triangles[i + 2]));
             }
-            
+
             output.Close();
         }
 
         static void printVerticals()
         {
             var output = new StreamWriter("out.txt");
-                
+
 
             for (int i = 0; i < _vertice.Count; i += 1)
             {
@@ -257,20 +255,36 @@ namespace s1
 
             output.Close();
         }
-        static void printUV(List<Vector2> _uv)
+
+        static void printNormals(List<Data.Normal> normals)
         {
             var output = new StreamWriter("out.txt");
-                
 
-            for (int i = 0; i < _uv.Count; i += 1)
+
+            for (int i = 0; i < normals.Count; i += 1)
             {
-                output.WriteLine((_uv[i].X) + " " +
-                                 (_uv[i].Y));
+                output.WriteLine((normals[i].X) + " " +
+                                 (normals[i].Y) + " " +
+                                 (normals[i].Z));
             }
 
             output.Close();
         }
-        
+
+        static void printUV(List<Data.Vertice> _uv)
+        {
+            var output = new StreamWriter("out.txt");
+
+
+            for (int i = 0; i < _uv.Count; i += 1)
+            {
+                output.WriteLine((_uv[i].U) + " " +
+                                 (_uv[i].V));
+            }
+
+            output.Close();
+        }
+
 
         static List<Data> createDataList(string prefix)
         {
@@ -291,8 +305,8 @@ namespace s1
                 var _x = vertex.X;
                 var _y = vertex.Y;
                 var _z = vertex.Z;
-                ver.Add(new Data.Vertice(_x, _y, _z, 0, 0));
-                min_x = Math.Min(_x, min_x);         
+                ver.Add(new Data.Vertice(_x, _y, _z, vertex.U, vertex.V));
+                min_x = Math.Min(_x, min_x);
                 min_y = Math.Min(_y, min_y);
                 min_z = Math.Min(_z, min_z);
                 max_x = Math.Max(_x, max_x);
@@ -325,7 +339,7 @@ namespace s1
                 var x = (vertex.X - center_x) / max_distance * SCALE;
                 var y = (vertex.Y - center_y) / max_distance * SCALE;
                 var z = (vertex.Z - center_z) / max_distance * SCALE;
-                ans.Add(new Vector3((float) x, (float)y, (float) z));
+                ans.Add(new Vector3((float) x, (float) y, (float) z));
             }
 
             return ans;
