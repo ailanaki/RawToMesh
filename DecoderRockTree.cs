@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Text;
 using Google.Protobuf;
-using s1;
 
 namespace GeoGlobetrotterProtoRocktree
 {
@@ -71,8 +68,8 @@ namespace GeoGlobetrotterProtoRocktree
         public List<VertexT> UnpackTexCoords(ByteString packed, List<VertexT> vertices, ref List<float> uvOffset, ref List<float> uvScale)
         {
             var data = new List<byte>(packed.ToByteArray());
-            var uMod = 1 + Convert.ToInt16(data[0] + (data[1] << 8));
-            var vMod = 1 + Convert.ToInt16(data[2] + (data[3] << 8));
+            var uMod = 1 + data[0] + (data[1] << 8);
+            var vMod = 1 + data[2] + (data[3] << 8);
             int u = 0, v = 0;
             var count = (data.Count - 4) / 4;
             for (var i = 0; i < count; i++)
@@ -104,16 +101,11 @@ namespace GeoGlobetrotterProtoRocktree
             {
                 triangleStrip.Add(0);
             }
-
-            var numNonDegenerateTriangles = 0;
-            for (int i = 0, zeros = 0, a = 0, b = 0, c = 0; i < triangleStripLen; i += 1)
+            for (int i = 0, zeros = 0, c = 0; i < triangleStripLen; i += 1)
             {
                 var res = UnpackVarInt(packed, ref offset);
-                a = b;
-                b = c;
                 c = zeros - res;
                 triangleStrip[i] = Convert.ToUInt16(c);
-                if (a != b && a != c && b != c) numNonDegenerateTriangles++;
                 if (0 == res) zeros++;
             }
 
